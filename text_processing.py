@@ -1,29 +1,49 @@
-import re
-from constants import entity_unit_map, qty_regex
+from constants import LABELS, CONFUSION, UNITS, NUM_PATTERN, QTY_PATTERN
 
-BBox = list[list[int]]
+BBox = list[list[float]]
 Match = tuple[BBox, str, float]
-MatchX = tuple[Match, list[int]]
-
-THRESHOLD = 0.5
-
-def unit_check(entity: str):
-    return lambda text: any(unit in text for unit in entity_unit_map[entity])
-
-def qty_check(entity: str):
-    return lambda text: re.search(qty_regex[entity], text)
-
-def sanitize(img_dim: tuple[int, int], ocr: list[Match]):
-    scale = lambda bbox: [[p[0] / img_dim[0], p[1] / img_dim[1]] for p in bbox]
-    return [(scale(match[0]), match[1].lower(), match[2]) for match in ocr]
 
 def get_size(bbox: BBox):
-    return (bbox[2][0] - bbox[0][0]) * (bbox[2][1] - bbox[0][1])
+    """
+    Takes the two "axes" to be the lines joining the centers of oppossite edges.
+    Returns the shorter of the lengths of these.
+    This is intended to be the height, though it may not be for very short text.
+    """
+    dx: tuple[float, float] = (bbox[1][0] + bbox[2][0] - bbox[0][0] - bbox[3][0],
+                               bbox[1][1] + bbox[2][1] - bbox[0][1] - bbox[3][1])
+    dy: tuple[float, float] = (bbox[2][0] + bbox[3][0] - bbox[0][0] - bbox[1][0],
+                               bbox[2][1] + bbox[3][1] - bbox[0][1] - bbox[1][1])
+    norm_sq = lambda v: v[0] * v[0] + v[1] * v[1]
+    return min(norm_sq(dx), norm_sq(dy))
 
-def process(entity: str, ocr: list[Match]):
-    ocrx = list(map(lambda x: (x, [0, 0, 0]), filter(lambda x: x[2] > THRESHOLD, ocr)))
-    containing_entity = list(filter(lambda x: entity in x[1], ocr))
-    if containing_entity:
-        containing_entity = sorted(containing_entity, key=lambda x: max
-    containing_unit = list(filter(unit_check(entity), ocr))
-    containing_qty = list(filter(qty_check(entity), ocr))
+class MatchX:
+    def __init__(self, match: Match, entity: str):
+        self.bbox = match[0]
+        text = match[1].lower() # redundant since matches should already be sanitized
+        self.confidence = match[2]
+        self.contains_label = any(label in text for label in LABELS[entity])
+        self.contains_unit = any(unit in text for unit in UNITS[entity])
+        self.contains_num = NUM_PATTERN.search(text) is not None
+        self.contains_qty = QTY_PATTERN[entity].search(text) is not None
+        self.font_size = get_size(self.bbox)
+
+    def to_list(self) -> list[float|bool]:
+        return [x for xs in self.bbox for x in xs] + [
+            self.confidence,
+            self.contains_label,
+            self.contains_unit,
+            self.contains_num,
+            self.contains_qty
+        ]
+
+THRESHOLD = 0.5
+NUM_MATCH_THRESHOLD = 20
+
+def sanitize(img_dim: tuple[int, int], ocr: list[Match]) -> list[Match]:
+    scale = lambda bbox: [[p[0] / img_dim[0], p[1] / img_dim[1]] for p in bbox]
+    profuse = lambda s: ''.join(CONFUSION.get(c, c) for c in s)
+    return [(scale(match[0]), profuse(match[1].lower()), match[2]) for match in ocr]
+
+def hard_process(entity: str, ocr: list[Match]) -> list[MatchX]:
+    ocr = sorted([x for x in ocr if x[2] > THRESHOLD], key=lambda x: x[2], reverse=True)
+    return [MatchX(x, entity) for x in ocr[:NUM_MATCH_THRESHOLD]]
