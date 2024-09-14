@@ -1,6 +1,29 @@
 import re
 
+
+# We are taking a list of strings, and a string, the output is a list of strings which matched.
+
+
+# Example usage
+# list_of_strings = [
+#     "I have a 50 cm ruler",
+#     "The table is 1.5 metres wide",
+#     "He lifted a 20 kilogram weight",  # Full form
+#     "The car weighs 2 tons",
+#     "It's 10.5 cm long",
+#     "She lifted a 20 kg weight",  # Abbreviation
+# ]
+
+# # Search for "20 kg" (number + unit)
+# number_with_unit = "20 k9"
+
+
+# Matching strings: ['He lifted a 20 kilogram weight', 'She lifted a 20 kg weight']
+
+
 # Dictionary of unit abbreviations, including full forms and abbreviations
+
+
 unit_abbreviations = {
     'centimetre': {'cm', 'centimetre'},
     'foot': {'ft', '"', 'foot'},
