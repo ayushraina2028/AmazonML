@@ -115,7 +115,7 @@ UNIT_PATTERNS: dict[str, set[re.Pattern]] = {
 NUM_PATTERN: re.Pattern = re.compile(r'\d+([\.\,]\d)?')
 
 def qty_pattern(unit: str) -> re.Pattern:
-    return re.compile(fr'\d+([\.\,]\d+)?\s*{unit}[s]?(?![a-z])')
+    return re.compile(fr'(\d+(?:[\.\,]\d+)?)\s*({unit}[s]?)(?![a-z])')
 QTY_PATTERN: dict[str, re.Pattern] = {
     entity: re.compile(fr'\d+([\.\,]\d+)?\s*({"|".join(UNITS[entity])})[s]?(?![a-z])')
         for entity in UNITS
