@@ -1,4 +1,4 @@
-from constants import LABELS, CONFUSION, UNITS, NUM_PATTERN, QTY_PATTERN
+from constants import LABELS, CONFUSION, UNIT_PATTERNS, NUM_PATTERN, QTY_PATTERN
 
 BBox = list[list[float]]
 Match = tuple[BBox, str, float]
@@ -19,20 +19,20 @@ def get_size(bbox: BBox):
 class MatchX:
     def __init__(self, match: Match, entity: str):
         self.bbox = match[0]
-        text = match[1].lower() # redundant since matches should already be sanitized
+        self.text = match[1].lower() # redundant since matches should already be sanitized
         self.confidence = match[2]
-        self.contains_label = any(label in text for label in LABELS[entity])
-        self.contains_unit = any(unit in text for unit in UNITS[entity])
-        self.contains_num = NUM_PATTERN.search(text) is not None
-        self.contains_qty = QTY_PATTERN[entity].search(text) is not None
+        self.contains_label = any(label in self.text for label in LABELS[entity])
+        # self.contains_unit = any(pat.search(self.text) for pat in UNIT_PATTERNS[entity])
+        # self.contains_num = NUM_PATTERN.search(self.text) is not None
+        self.contains_qty = QTY_PATTERN[entity].search(self.text) is not None
         self.font_size = get_size(self.bbox)
 
     def to_list(self) -> list[float|bool]:
         return [x for xs in self.bbox for x in xs] + [
             self.confidence,
             self.contains_label,
-            self.contains_unit,
-            self.contains_num,
+            # self.contains_unit,
+            # self.contains_num,
             self.contains_qty
         ]
 
@@ -45,5 +45,6 @@ def sanitize(img_dim: tuple[int, int], ocr: list[Match]) -> list[Match]:
     return [(scale(match[0]), profuse(match[1].lower()), match[2]) for match in ocr]
 
 def hard_process(entity: str, ocr: list[Match]) -> list[MatchX]:
-    ocr = sorted([x for x in ocr if x[2] > THRESHOLD], key=lambda x: x[2], reverse=True)
-    return [MatchX(x, entity) for x in ocr[:NUM_MATCH_THRESHOLD]]
+    mxs = sorted((MatchX(x, entity) for x in ocr if x[2] > THRESHOLD), key=lambda mx: mx.confidence, reverse=True)
+    mxs = [mx for mx in mxs if (mx.contains_label or mx.contains_qty)][:NUM_MATCH_THRESHOLD]
+    return mxs
