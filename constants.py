@@ -1,4 +1,21 @@
-naive_entity_unit_map: dict[str, set[str]] = {
+Entity = str
+Unit = str
+Label = str
+
+CONFUSION: dict[str, str] = {
+    'o': '0',
+    'i': '1',
+    's': '5',
+    'b': '6',
+    'q': '9',
+}
+possible_confusion: dict[str, str] = {
+    'g': '9',
+    'z': '2',
+    'l': '1',
+}
+
+entity_unit_map: dict[Entity, set[Unit]] = {
     'width': {'centimetre', 'foot', 'inch', 'metre', 'millimetre', 'yard'},
     'depth': {'centimetre', 'foot', 'inch', 'metre', 'millimetre', 'yard'},
     'height': {'centimetre', 'foot', 'inch', 'metre', 'millimetre', 'yard'},
@@ -33,21 +50,21 @@ naive_entity_unit_map: dict[str, set[str]] = {
         'quart'}
 }
 
-LABELS: dict[str, set[str]] = {
+LABELS: dict[Entity, set[Label]] = {
     'width': {'width', 'size'},
     'height': {'height', 'ht', 'size'},
     'depth': {'depth'},
-    'item_weight': {'weight', 'wt'},
-    'maximum_weight_recommendation': {'weight', 'wt'},
+    'item_weight': {'weight', 'wt', 'content'},
+    'maximum_weight_recommendation': {'weight', 'wt', 'content'},
     'voltage': {'voltage'},
     'wattage': {'wattage', 'power'},
     'item_volume': {'vol', 'capacity', 'size'}
 }
 
-unit_abbreviations: dict[str, set[str]] = {
+ALL_FORMS: dict[Unit, set[Unit]] = {
     'centimetre': {'cm'},
-    'foot': {'ft', '"'},
-    'inch': {'in', "'"},
+    'foot': {'ft', 'feet', '"'},
+    'inch': {'in', 'inches', "'"},
     'metre': {'m'},
     'millimetre': {'mm'},
     'yard': {'yd'},
@@ -57,15 +74,15 @@ unit_abbreviations: dict[str, set[str]] = {
     'milligram': {'mg'},
     'ounce': {'oz'},
     'pound': {'lb'},
-    'ton': {'t'},
+    'ton': {'t', 'tonnes'}, # t for ton?
     'kilovolt': {'kv'},
     'millivolt': {'mv'},
     'volt': {'v'},
     'kilowatt': {'kw'},
     'watt': {'w'},
     'centilitre': {'cl'},
-    'cubic foot': { 'ft³', 'ft3' },
-    'cubic inch': { 'in³', 'in3' },
+    'cubic foot': { 'cubic feet', 'ft3' },
+    'cubic inch': { 'cubic inches', 'in3' },
     'cup': {'cup'},
     'decilitre': {'dl'},
     'fluid ounce': {'fl oz'},
@@ -77,35 +94,34 @@ unit_abbreviations: dict[str, set[str]] = {
     'pint': {'pt'},
     'quart': {'qt'}
 }
+for full_unit, abbs in ALL_FORMS.items():
+    abbs.add(full_unit)
 
-CONFUSION: dict[str, str] = {
-    'o': '0',
-    'i': '1',
-    's': '5',
-    'b': '6',
-    'q': '9',
+for full_unit, forms in ALL_FORMS.items():
+    forms = {''.join(CONFUSION.get(c, c) for c in unit) for unit in forms}
+    forms = forms.union({''.join(possible_confusion.get(c, c) for c in unit) for unit in forms if len(unit) > 1})
+    ALL_FORMS[full_unit] = forms
+
+UNITS: dict[Entity, set[Unit]] = {
+    entity: set.union(*[ALL_FORMS[full_unit] for full_unit in full_units])
+        for entity, full_units in entity_unit_map.items()
 }
-possible_confusion: dict[str, str] = {
-    'g': '9',
-    'z': '2',
-    'l': '1',
-}
-
-UNITS: dict[str, set[str]] = {entity: naive_entity_unit_map[entity].union(*[unit_abbreviations[unit] for unit in naive_entity_unit_map[entity]])
-    for entity in naive_entity_unit_map}
-
-for entity, units in UNITS.items():
-    units = {''.join(CONFUSION.get(c, c) for c in unit) for unit in units}
-    units = units.union({''.join(possible_confusion.get(c, c) for c in unit) for unit in units if len(unit) > 1})
-    UNITS[entity] = units
-
-from pprint import pprint
-pprint(UNITS)
 
 import re
-NUM_PATTERN: re.Pattern = re.compile(r'\d+([\.\,]\d)?')
-QTY_PATTERN: dict[str, re.Pattern] = {
-    entity: re.compile(rf'\d+([\.\,]\d+)?\s*({"|".join(UNITS[entity])})')
+UNIT_PATTERNS: dict[str, set[re.Pattern]] = {
+    entity: {re.compile(fr'(?<![a-z]){unit}[s]?(?![a-z])') for unit in UNITS[entity]}
         for entity in UNITS
 }
-pprint(QTY_PATTERN)
+NUM_PATTERN: re.Pattern = re.compile(r'\d+([\.\,]\d)?')
+
+def qty_pattern(unit: str) -> re.Pattern:
+    return re.compile(fr'\d+([\.\,]\d+)?\s*{unit}[s]?(?![a-z])')
+QTY_PATTERN: dict[str, re.Pattern] = {
+    entity: re.compile(fr'\d+([\.\,]\d+)?\s*({"|".join(UNITS[entity])})[s]?(?![a-z])')
+        for entity in UNITS
+}
+
+if __name__ == '__main__':
+    from pprint import pprint
+    pprint(UNITS)
+    pprint(QTY_PATTERN)
